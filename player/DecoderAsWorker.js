@@ -1,6 +1,6 @@
 
 // TODO: finish one day..
-class DecoderAsWorker {
+export default class DecoderAsWorker {
     constructor (canvastype) {
         const webgl = canvastype === 'webgl'
         const raw_decode = require('raw-loader!broadway/Decoder')

@@ -1,6 +1,7 @@
 'use strict'
 
 import Avc from 'broadway/Decoder'
+import DecoderAsWorker from './DecoderAsWorker'
 import YUVWebGLCanvas from 'canvas/YUVWebGLCanvas'
 import YUVCanvas from 'canvas/YUVCanvas'
 import Size from 'utils/Size'
@@ -10,6 +11,11 @@ import debug from 'debug' // ?? why?
 
 
 const log = debug('wsavc')
+function buf2hex(bytes) { // buffer is an ArrayBuffer
+    const data = bytes.subarray(0, 10);
+    return Array.prototype.map.call(data, x => ('00' + x.toString(16)).slice(-2)).join('');
+}
+
 class WSAvcPlayer extends EventEmitter {
     constructor (canvas, canvastype, useWorker) {
         super()
@@ -83,11 +89,12 @@ class WSAvcPlayer extends EventEmitter {
                 naltype = 'PPS'
             }
         }
-        log(`Passed ${ naltype } to decoder ${ data[4] & 0x1f }`)
+        console.log(`Passed ${ naltype } to decoder ${ data[4] & 0x1f }`)
         /* const now_new = new Date().getTime()
         const elapsed = now_new - this.now
         this.now = now_new
         console.log(1000 / elapsed) */
+        console.log(buf2hex(data)); // = 04080c10
         this.avc.decode(data)
     }
 
@@ -128,25 +135,36 @@ class WSAvcPlayer extends EventEmitter {
         const shiftFrame = function () {
             if (!running)
                 return
+            /* Decode Pictures */
+            var pic = 0;
+            setTimeout(function foo() {
+                const frame = framesList.shift()
+                this.emit('frame_shift', framesList.length)
+    
+                if (frame) this.decode(frame)
+                pic ++;
+                if (pic < 3000) {
+                setTimeout(foo.bind(this), 20);
+                };
+            }.bind(this), 20);
 
+            // if (framesList.length > 30) {
+            //     log('Dropping frames', framesList.length)
+            //     const vI = framesList.findIndex(e => (e[4] & 0x1f) === 7)
+            //     // console.log('Dropping frames', framesList.length, vI)
+            //     if (vI >= 0) {
+            //         framesList = framesList.slice(vI)
+            //     }
+            //     // framesList = []
+            // }
 
-            if (framesList.length > 30) {
-                log('Dropping frames', framesList.length)
-                const vI = framesList.findIndex(e => (e[4] & 0x1f) === 7)
-                // console.log('Dropping frames', framesList.length, vI)
-                if (vI >= 0) {
-                    framesList = framesList.slice(vI)
-                }
-                // framesList = []
-            }
+            // const frame = framesList.shift()
+            // this.emit('frame_shift', framesList.length)
 
-            const frame = framesList.shift()
-            this.emit('frame_shift', framesList.length)
+            // if (frame)
+            //     this.decode(frame)
 
-            if (frame)
-                this.decode(frame)
-
-            requestAnimationFrame(shiftFrame)
+            // requestAnimationFrame(shiftFrame)
         }.bind(this)
 
 
@@ -175,7 +193,7 @@ class WSAvcPlayer extends EventEmitter {
             }
             return canvas.decode(e, w, h, ...rest)
         }
-        this.canvas.style = `width:100%; height:${ height / width * 100 }vh;`
+        // this.canvas.style = `width:100%; height:${ height / width * 100 }vh;`
         this.canvas.width = width
         this.canvas.height = height
 
